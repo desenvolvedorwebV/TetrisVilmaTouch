@@ -557,6 +557,36 @@
   // ===== START =====
   spawn();
   update();
+  
+  // ===== PWA INSTALL =====
+  let deferredPrompt=null;
+  const installBtn=document.getElementById("install");
+  
+  // escondido inicialmente
+  installBtn.style.display="none";
+  window.addEventListener("beforeinstallprompt",(e)=>{
+    // impede popup automático
+    e.preventDefault();
+    deferredPrompt=e;
+    
+    // mostra botão
+    installBtn.style.display="block";
+  });
+  
+  installBtn.addEventListener("click",async()=>{
+    if(!deferredPrompt)
+      return;
+    
+    deferredPrompt.prompt();
+    const choice=await deferredPrompt.userChoice;
+    
+    if(choice.outcome==="accepted")
+    {
+      installBtn.style.display="none";
+    }
+    
+    deferredPrompt=null;
+  });
 
   // ===== SERVICE WORKER =====
   if("serviceWorker" in navigator)
