@@ -557,6 +557,12 @@
   // ===== START =====
   spawn();
   update();
+
+  // ===== SERVICE WORKER =====
+  if("serviceWorker" in navigator)
+  {
+    navigator.serviceWorker.register("./sw.js");
+  }
 </script>
 <br>
 <div id="atribuition">Desenvolvido com amor e carinho para Vovó Vilma.</div>
