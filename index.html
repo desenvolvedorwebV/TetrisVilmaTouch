@@ -587,7 +587,17 @@
     
     deferredPrompt=null;
   });
-
+  
+  // se já estiver instalado → esconde botão
+  function isStandalone(){
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone || document.referrer.includes('android-app://');
+  }
+  
+  if(isStandalone())
+  {
+    installBtn.style.display="none";
+  }
+  
   // ===== SERVICE WORKER =====
   if("serviceWorker" in navigator)
   {
