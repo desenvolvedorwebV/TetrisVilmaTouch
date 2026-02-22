@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+
+<title>Tetris Vilma</title>
+
+<style>
+  body{
+    margin:0;
+    background:#111;
+    color:white;
+    font-family:sans-serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    touch-action:none;
+    overscroll-behavior:none;
+    user-select:none;
+  }
+  
+  h2{
+    margin:10px;
+  }
+  
+  .container{
+    display:flex;
+    gap:15px;
+    align-items:flex-start;
+  }
+  
+  canvas{
+    background:#000;
+    border-radius:10px;
+    touch-action:none;
+  }
+  
+  .info{
+    display:flex;
+    flex-direction:column;
+    gap:20px;
+  }
+  
+  .score{
+    background:#222;
+    padding:10px;
+    border-radius:10px;
+    text-align:center;
+  }
+  
+  #install{
+    width:370px;
+    height:32px;
+    font-size:18px;
+    background-color:#000;
+    color:#fff;
+    border:1px solid #fff;
+    border-radius:6px;
+  }
+  
+  #atribuition{
+    width:370px;
+    height:16px;
+    font-size:14px;
+    background-color:#000;
+    color:#fff;
+    border:1px solid #fff;
+    border-radius:6px;
+    text-align:center;
+  }
+  
+  #pause,#retry{
+    background-color:#000;
+    color:#fff;
+    border:1px solid #fff;
+    border-radius:6px;
+  }
+</style>
+</head>
+
+<body>
+  <br>
+  <button id="install">CLIQUE PARA INSTALAR</button>
+  <br>
+  <div class="container">
+    <canvas id="game" width="240" height="580"></canvas>
+    <div class="info">
+      <div class="score">
+        Pontuação
+        <h3 id="score">0</h3>
+      </div>
+      
+      <div class="score">
+        Nível
+        <h3 id="level">0</h3>
+      </div>
+
+      <div class="score">
+        <h1 id="humor">😍</h1>
+      </div>
+      
+      <div class="score">
+        Próxima
+        <br>
+        <canvas id="next" width="80" height="80"></canvas>
+      </div>
+
+      <div class="score">
+        <button id="pause" style="width:100px">PAUSAR</button><br><br>
+        <button id="retry" style="width:100px">REINICIAR</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ===== CONFIG =====
+  const COLS=10;
+  const ROWS=24;
+  const SIZE=24;
+  
+  const canvas=document.getElementById("game");
+  const ctx=canvas.getContext("2d");
+  
+  const nextCanvas=document.getElementById("next");
+  const nextCtx=nextCanvas.getContext("2d");
+
+
+  // ===== PEÇAS =====
+  const SHAPES=[
+    [[1]], //.
+    [[1,1,1,1]], // I
+    [[1,1],[1,1]], // O
+    [[0,1,0],[1,1,1]], // T
+    [[1,0,0],[1,1,1]], // J
+    [[0,0,1],[1,1,1]], // L
+    [[1,1,0],[0,1,1]], // S
+    [[0,1,1],[1,1,0]] // Z
+  ];
+
+  const COLORS=[
+    "#888a8a",
+    "#00ffff",
+    "#ffff00",
+    "#bb00ff",
+    "#0044ff",
+    "#ff8800",
+    "#00ff88",
+    "#ff0044"
+  ];
+
+  // ===== TABULEIRO =====
+  let board=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+
+
+  // ===== PEÇA =====
+  let piece=null;
+  let nextPiece=randomPiece();
+  
+  //===== PONTUAÇÃO =====
+  let score=0;
+
+  function recomecar()
+  {
+    if (confirm("Deseja recomeçar?"))
+    {
+      board=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+      level=0;
+      document.getElementById("level").innerText=level;
+      score=0;
+      document.getElementById("score").innerText=score;
+    }
+  }
+  
+  // ===== SORTEAR PEÇA =====
+  function randomPiece()
+  {
+    let id=Math.floor(Math.random()*SHAPES.length);
+    return{shape:SHAPES[id], color:COLORS[id],x:3,y:0};
+  }
+
+  // ===== SOLTAR PEÇA =====
+  function spawn()
+  {
+    piece=nextPiece;
+    piece.x=3;
+    piece.y=0;
+    nextPiece=randomPiece();
+    drawNext();
+    
+    if(collide(piece))
+    {
+      alert("Game Over");
+      recomecar();
+    }
+  }
+
+  // ===== FUNÇÕES PARA EMOJI =====
+  function calcularPerigo()
+  {
+    let alturaMax=0;
+    let buracos=0;
+    let topoOcupado=0;
+    
+    // ===== altura =====
+    for(let y=0;y<ROWS;y++)
+    {
+      let ocupada= board[y].some(c=>c);
+      if(ocupada)
+      {
+        alturaMax=ROWS-y;
+        break;
+      }
+    }
+     
+    // ===== topo =====
+    for(let y=0;y<5;y++)
+    {
+      if(board[y].some(c=>c))
+      topoOcupado++;
+    }
+    
+    // ===== buracos =====
+    for(let x=0;x<COLS;x++)
+    {
+      let encontrouBloco=false;
+      for(let y=0;y<ROWS;y++)
+      {
+        if(board[y][x])
+        {
+          encontrouBloco=true;
+        }
+        else if(encontrouBloco)
+        {
+          buracos++;
+        }
+      }
+    }
+    
+    // ===== pesos =====
+    let perigo=0;
+    perigo+=alturaMax*3;
+    perigo+=topoOcupado*12;
+    perigo+=buracos*0.7;
+      
+    // limitar
+    perigo=Math.min(100,Math.floor(perigo));
+    
+    return perigo;
+  }
+
+  function humorEmoji(valor)
+  {
+    if(valor<=10) return "😍";
+    if(valor<=25) return "😊";
+    if(valor<=40) return "😃";
+    if(valor<=55) return "😅";
+    if(valor<=70) return "🥲";
+    if(valor<=85) return "😢";
+    return "😭";
+  }
+  
+  function mostrarHumor()
+  {
+    let perigo = calcularPerigo();
+    let emoji = humorEmoji(perigo);
+    document.getElementById("humor").innerText = emoji;
+  }
+    
+  // ===== COLISÃO =====
+  function collide(p)
+  {
+    return p.shape.some((row,dy)=> row.some((value,dx)=>{
+      if(!value)
+        return false;
+      
+      let x=p.x+dx;
+      let y=p.y+dy;
+      return(x<0 ||x>=COLS ||y>=ROWS ||(board[y] && board[y][x]));
+    }));
+  }
+
+  // ===== QUANDO FIXA PEÇA =====
+  function merge()
+  {
+    piece.shape.forEach((row,dy)=>{
+      row.forEach((v,dx)=>{
+        if(v){
+          board[piece.y+dy][piece.x+dx]=piece.color;
+        }
+      });
+    });
+    clearLines();
+    spawn();
+    mostrarHumor();
+  }
+
+  // ===== LIMPAR LINHAS =====
+  function clearLines()
+  {
+    let lines=0;
+    board=board.filter(row=>{
+      if(row.every(v=>v)){
+        lines++;
+        return false;
+      }
+      return true;
+    });
+    
+    while(board.length<ROWS)
+    {
+      board.unshift(Array(COLS).fill(0));
+    }
+    
+    if(lines)
+    {
+      score+=lines*100;
+      document.getElementById("score").innerText=score;
+      
+      // LEVEL (AUMENTA UM A CADA 500 PONTOS E CHEGA NO MÁXIMO A 20)
+      level=Math.min(20,Math.floor(score/500));
+      document.getElementById("level").innerText=level;
+      
+      // VELOCIDADE (IMPACTADA PELO LEVEL)
+      dropInterval = 700-(level*30);
+      if(dropInterval<80)
+        dropInterval=80; //NÃO DEIXA SER INFERIOR A 80, SE NÃO FICA IMPOSSÍVEL DE JOGAR
+    }
+  }
+
+  // ===== ROTACIONAR PEÇAS =====
+  function rotate()
+  {
+    let rotated=piece.shape[0].map((_,i)=> piece.shape.map(r=>r[i]).reverse());
+    let backup=piece.shape;
+    piece.shape=rotated;
+    
+    if(collide(piece))
+    {
+      piece.shape=backup;
+    }
+  }
+  
+  // ===== DESENHAR JOGO =====
+  function drawCell(x,y,color)
+  {
+    ctx.fillStyle=color;
+    ctx.fillRect(x*SIZE,y*SIZE,SIZE-1,SIZE-1);
+  }
+
+  function draw()
+  {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    
+    // board
+    board.forEach((row,y)=>{
+      row.forEach((color,x)=>{
+        if(color){
+          drawCell(x,y,color);
+        }
+      });
+    });
+    
+    // peça
+    if(piece)
+    {
+      piece.shape.forEach((row,dy)=>{
+        row.forEach((v,dx)=>{
+          if(v){
+            drawCell(piece.x+dx,piece.y+dy,piece.color);
+          }
+        });
+      });
+    }
+  }
+
+
+  // ===== PRÉVIA DA RÓXIMA PEÇA=====
+  function drawNext()
+  {
+    nextCtx.clearRect(0,0,nextCanvas.width,nextCanvas.height);
+    const block=16;
+    const gap=2;
+    let shape=nextPiece.shape;
+    let rows=shape.length;
+    let cols=shape[0].length;
+    
+    // tamanho real da peça
+    let pieceWidth = cols*(block+gap);
+    let pieceHeight = rows*(block+gap);
+    
+    // centralizar
+    let offsetX = (nextCanvas.width-pieceWidth)/2;
+    let offsetY = (nextCanvas.height-pieceHeight)/2;
+  
+    shape.forEach((row,y)=>{
+      row.forEach((v,x)=>{
+        if(v){
+          nextCtx.fillStyle= nextPiece.color;
+          nextCtx.fillRect(offsetX + x*(block+gap),offsetY + y*(block+gap),block,block);
+        }
+      });
+    });
+  }
+
+  // ===== MOVIMENTO =====
+  function move(dx)
+  {
+    piece.x+=dx;
+    if(collide(piece))
+    {
+      piece.x-=dx;
+    }
+  }
+
+  //QUEDA DA PEÇA
+  function drop()
+  {
+    piece.y++;
+    if(collide(piece))
+    {
+      piece.y--;
+      merge();
+    }
+  }
+
+  // ===== LOOP =====
+  let dropCounter=0;
+  let dropInterval=700;
+  let last=0;
+  let level=0;
+  let pausado = false;
+  
+  function update(time=0)
+  {
+    let delta = time - last;
+    last = time;
+  
+    // se pausado não cai peça
+    if(!pausado)
+    {
+      dropCounter += delta;
+      if(dropCounter > dropInterval)
+      {
+        drop();
+        dropCounter = 0;
+      }
+    }
+    draw();
+  
+    // desenha aviso pausa
+    if(pausado)
+    {
+      ctx.fillStyle="rgba(0,0,0,0.6)";
+      ctx.fillRect(0,canvas.height/2 - 40,canvas.width,80);
+      ctx.fillStyle="white";
+      ctx.font="bold 28px sans-serif";
+      ctx.textAlign="center";
+      ctx.fillText("⏸ PAUSADO",canvas.width/2,canvas.height/2 +10);
+    }
+    requestAnimationFrame(update);
+  }
+  
+  // ===== TOUCH PRO MOBILE DRAG =====
+  let startX=0;
+  let startY=0;
+  let lastMoveX=0;
+  let touchStartTime=0;  
+  let lastTap=0;
+
+  // ===== TOUCH START =====
+  canvas.addEventListener("touchstart",(e)=>{
+    e.preventDefault();
+    if(pausado) 
+      return;
+    
+    const t=e.touches[0];
+      
+    startX=t.clientX;
+    startY=t.clientY;
+      lastMoveX=startX;
+      touchStartTime=Date.now();
+  },{passive:false});
+
+  // ===== TOUCH MOVE =====
+  canvas.addEventListener("touchmove",(e)=>{
+    e.preventDefault();
+    if(pausado) 
+      return;
+    
+    const t=e.touches[0];
+    let dx = t.clientX - startX;
+    let dy = t.clientY - startY;
+    
+    // ⭐ SE ESTIVER DESCENDO → IGNORA LATERAL
+    if(Math.abs(dy) > Math.abs(dx))
+      return;
+
+    // cada X pixels move 1 bloco
+    const passo = 22;
+    let passos = Math.floor(dx / passo);
+    
+    // move relativo ao último passo
+    if(passos !== 0)
+    {
+      move(passos);
+     
+      // reinicia referência
+      startX = t.clientX;
+    }
+  },{passive:false});
+
+  // ===== TOUCH END =====
+  canvas.addEventListener("touchend",(e)=>{
+    e.preventDefault();
+    
+    if(pausado) return;
+      const now=Date.now();
+    
+    // ===== DUPLO TAP ROTACIONA =====
+    if(now-lastTap<260)
+    {
+      rotate();
+      lastTap=0;
+      return;
+    }
+    lastTap=now;
+
+    // ===== SWIPE =====
+    const t=e.changedTouches[0];
+  
+    let dx=t.clientX-startX;
+    let dy=t.clientY-startY;
+  
+    let tempo=now-touchStartTime;
+
+    // vertical prioridade ↓
+    if(Math.abs(dy)>Math.abs(dx))
+    {
+      // leve ↓
+      if(dy>25)
+      {
+        drop();
+      }
+    }
+  },{passive:false});
+
+  document.getElementById("retry").onclick= ()=>{ if(!pausado) recomecar(); };
+  document.getElementById("pause").onclick = ()=> {
+    pausado = !pausado;
+    const btn = document.getElementById("pause");
+    btn.innerText = pausado ? "DESPAUSAR" : "PAUSAR";
+  };
+
+  // ===== START =====
+  spawn();
+  update();
+</script>
+<br>
+<div id="atribuition">Desenvolvido com amor e carinho para Vovó Vilma.</div>
+</body>
+</html>
